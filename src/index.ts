@@ -27,7 +27,8 @@ dotenv.config();
 const ENTRA_TENANT_ID = process.env.ENTRA_TENANT_ID!;
 const ENTRA_CLIENT_ID = process.env.ENTRA_CLIENT_ID!;
 const ENTRA_CLIENT_SECRET = process.env.ENTRA_CLIENT_SECRET!;
-const SERVER_URL = process.env.SERVER_URL || "http://localhost:3333";
+const RAW_SERVER_URL = process.env.SERVER_URL || "http://localhost:3333";
+const SERVER_URL = RAW_SERVER_URL.startsWith("http") ? RAW_SERVER_URL : `https://${RAW_SERVER_URL}`;
 const PORT = parseInt(process.env.PORT || "3333", 10);
 
 const ENTRA_AUTHORITY = `https://login.microsoftonline.com/${ENTRA_TENANT_ID}/oauth2/v2.0`;
