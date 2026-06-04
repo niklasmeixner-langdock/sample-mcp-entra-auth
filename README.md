@@ -1,90 +1,106 @@
-# Sample MCP Server with Microsoft Entra ID Auth (DCR)
+# sample-mcp-entra-auth
 
-A sample [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server demonstrating Microsoft Entra ID (Azure AD) OAuth integration with Dynamic Client Registration (DCR).
+A sample MCP (Model Context Protocol) server demonstrating **Microsoft Entra ID** (Azure AD) OAuth integration with Dynamic Client Registration (DCR).
 
-## How It Works
+This server acts as an OAuth 2.0 proxy: MCP clients authenticate through this server, which delegates to Microsoft Entra ID for user authentication and forwards the Entra access token to make Microsoft Graph API calls on behalf of the user.
 
-This server acts as an OAuth 2.0 Authorization Server that proxies authentication to Microsoft Entra ID:
+## OAuth Flow
 
-1. MCP client discovers OAuth metadata via `/.well-known/oauth-authorization-server`
-2. MCP client registers dynamically via DCR at `/register`
-3. MCP client sends user to `/authorize` with PKCE
-4. Server redirects user to Entra ID for authentication
-5. User authenticates with Entra ID
-6. Entra ID redirects back to `/entra/callback` with an auth code
-7. Server exchanges the Entra code for tokens, generates its own auth code
-8. Server redirects back to the MCP client with the auth code
-9. MCP client exchanges the code at `/token` for an access token
-10. MCP client uses the access token for authenticated MCP requests at `/mcp`
+```
+MCP Client                    This Server                  Entra ID
+    │                              │                           │
+    ├─ Discover OAuth metadata ──► │                           │
+    │  (/.well-known/oauth-        │                           │
+    │   authorization-server)      │                           │
+    │                              │                           │
+    ├─ Register via DCR ─────────► │                           │
+    │  (POST /register)            │                           │
+    │                              │                           │
+    ├─ Authorize (with PKCE) ────► │                           │
+    │  (GET /authorize)            ├─ Redirect to Entra ID ──► │
+    │                              │  (/oauth2/v2.0/authorize) │
+    │                              │                           │
+    │                              │  ◄── User authenticates ──┤
+    │                              │                           │
+    │                              │  ◄── Callback with code ──┤
+    │                              │  (GET /entra/callback)    │
+    │                              │                           │
+    │                              ├─ Exchange code for ──────►│
+    │                              │  Entra tokens             │
+    │                              │  (POST /oauth2/v2.0/token)│
+    │                              │                           │
+    │  ◄── Redirect with code ─────┤                           │
+    │                              │                           │
+    ├─ Exchange code for token ──► │                           │
+    │  (POST /token)               │                           │
+    │                              │                           │
+    ├─ Use token for MCP ────────► │                           │
+    │  (POST /mcp)                 ├─ Call Microsoft Graph ───►│
+    │                              │                           │
+```
 
 ## Prerequisites
 
 - Node.js 18+
 - pnpm
 - A Microsoft Entra ID (Azure AD) app registration with:
-  - **Client secret** configured
+  - Client ID and Client Secret
+  - Redirect URI set to `http://localhost:3333/entra/callback`
   - `User.Read` delegated permission (Microsoft Graph)
-  - Redirect URI set to `http://localhost:3333/entra/callback` (or your server URL)
 
 ## Setup
 
-1. Install dependencies:
-   ```bash
-   pnpm install
-   ```
+1. Clone and install:
 
-2. Copy and configure environment variables:
-   ```bash
-   cp .env.example .env
-   ```
+```bash
+git clone https://github.com/niklasmeixner-langdock/sample-mcp-entra-auth.git
+cd sample-mcp-entra-auth
+pnpm install
+```
 
-   Fill in your Entra ID app registration details:
-   - `ENTRA_TENANT_ID` - Your Azure AD tenant ID
-   - `ENTRA_CLIENT_ID` - App registration client ID
-   - `ENTRA_CLIENT_SECRET` - App registration client secret
+2. Configure environment:
 
-## Running
+```bash
+cp .env.example .env
+# Edit .env with your Entra ID credentials
+```
 
-Development mode (with hot reload):
+3. Run:
+
 ```bash
 pnpm dev
 ```
 
-Production:
-```bash
-pnpm build
-pnpm start
-```
+## Environment Variables
 
-The server starts on `http://localhost:3333`.
+| Variable | Required | Description |
+|---|---|---|
+| `ENTRA_TENANT_ID` | Yes | Your Azure AD tenant ID |
+| `ENTRA_CLIENT_ID` | Yes | Entra ID app registration client ID |
+| `ENTRA_CLIENT_SECRET` | Yes | Entra ID app registration client secret |
+| `SERVER_URL` | No | Server URL (default: `http://localhost:3333`) |
+| `PORT` | No | Port number (default: `3333`) |
 
 ## Endpoints
 
 | Endpoint | Description |
-|----------|-------------|
-| `/.well-known/oauth-authorization-server` | OAuth 2.0 Authorization Server Metadata |
+|---|---|
+| `/.well-known/oauth-authorization-server` | OAuth 2.0 authorization server metadata |
 | `/register` | Dynamic Client Registration (RFC 7591) |
 | `/authorize` | Authorization endpoint (redirects to Entra ID) |
-| `/token` | Token exchange endpoint |
+| `/token` | Token endpoint |
 | `/entra/callback` | Entra ID OAuth callback |
-| `/mcp` | MCP endpoint (protected by bearer auth) |
+| `/mcp` | MCP endpoint (POST, GET, DELETE) |
 
 ## MCP Tools
 
-| Tool | Description |
-|------|-------------|
-| `get-current-user` | Returns the authenticated user's profile from Microsoft Graph (id, displayName, mail, userPrincipalName, jobTitle) |
+### `get-current-user`
 
-## Testing
+Returns the authenticated user's profile from Microsoft Graph.
 
-Use the MCP Inspector:
-```bash
-pnpm inspector
-```
+**Response fields:** `id`, `displayName`, `mail`, `userPrincipalName`, `jobTitle`
 
-## MCP Client Configuration
-
-Configure your MCP client to connect to this server:
+## Client Configuration
 
 ```json
 {
@@ -96,5 +112,3 @@ Configure your MCP client to connect to this server:
   }
 }
 ```
-
-The client will automatically discover the OAuth metadata and handle the authentication flow including DCR.
